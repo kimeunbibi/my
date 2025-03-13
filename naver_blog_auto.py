@@ -39,31 +39,33 @@ print("✅ Headless Mode에서 실행 중...")
 print("📌 현재 페이지 제목:", driver.title)
 
 ###
-
 def write_title(driver, text):
     try:
         print("✅ 제목 입력 시도...")
 
         # ✅ iframe 전환 (네이버 블로그 글쓰기 페이지의 본문 편집기)
+        driver.switch_to.default_content()
         editor_iframe = WebDriverWait(driver, 10).until(
             EC.presence_of_element_located((By.TAG_NAME, "iframe"))
         )
         driver.switch_to.frame(editor_iframe)
         print("✅ iframe 전환 완료")
 
-        # ✅ 제목 입력란 찾기
+        # ✅ 제목 입력란 찾기 (JavaScript 사용)
         title_box = WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.CLASS_NAME, "se-title-text"))
+            EC.presence_of_element_located((By.CSS_SELECTOR, "div.se-title-text p.se-text-paragraph span"))
         )
         print("✅ 제목 입력란 찾음")
 
-        # ✅ 방법 1: JavaScript로 직접 입력
+        # ✅ 방법 1: JavaScript로 제목 변경 (send_keys 대신)
         driver.execute_script("arguments[0].innerText = arguments[1];", title_box, text)
-        print(f"✅ 제목 입력 완료: {text}")
+        print(f"✅ 제목 입력 완료 (JavaScript 사용): {text}")
 
         time.sleep(2)  # 입력 안정화 대기
+
     except Exception as e:
         print("⚠ 제목 입력 중 오류 발생:", e)
+
 
 
 
@@ -72,31 +74,81 @@ def write_content(driver, text):
     try:
         print("✅ 본문 입력 시도...")
 
-        # ✅ iframe 확인 및 전환
-        driver.switch_to.default_content()  # 최상위 프레임으로 이동
+        # ✅ 최상위 프레임으로 이동 후 iframe 찾기
+        driver.switch_to.default_content()
         editor_iframe = WebDriverWait(driver, 10).until(
             EC.presence_of_element_located((By.TAG_NAME, "iframe"))
         )
         driver.switch_to.frame(editor_iframe)  # 🔥 본문 편집기 iframe 내부로 이동
         print("✅ 본문 입력 iframe 전환 완료")
 
-        # ✅ 본문 입력란 찾기
+        # ✅ 본문 입력란 찾기 (제목과 확실히 구분)
         content_box = WebDriverWait(driver, 10).until(
-            EC.element_to_be_clickable((By.CSS_SELECTOR, "div[contenteditable='true']"))
+            EC.presence_of_element_located((By.CSS_SELECTOR, "div.se-component.se-text p.se-text-paragraph span"))
         )
-        print("✅ 본문 입력란 찾음")
+        print("✅ 본문 입력란 찾음 (제목과 다름)")
 
-        # ✅ 방법 1: JavaScript로 강제 입력 (더 안정적)
+        # ✅ 기존 내용 삭제 후 본문 입력
         driver.execute_script("arguments[0].innerText = arguments[1];", content_box, text)
-        print("✅ 본문 입력 완료 (JavaScript 사용)")
+        print(f"✅ 본문 입력 완료 (JavaScript 사용): {text}")
 
         time.sleep(2)  # 입력 안정화 대기
+
     except Exception as e:
         print("⚠ 본문 입력 중 오류 발생:", e)
 
 
 
+def complete_writing(driver):
+    try:
+        print("✅ 게시글 발행 시도...")
 
+        # ✅ 최상위 프레임으로 이동
+        driver.switch_to.default_content()
+
+        # ✅ iframe 확인 및 전환 (iframe 내부라면 전환)
+        try:
+            editor_iframe = WebDriverWait(driver, 5).until(
+                EC.presence_of_element_located((By.TAG_NAME, "iframe"))
+            )
+            driver.switch_to.frame(editor_iframe)
+            print("✅ iframe 전환 완료")
+        except:
+            print("⚠ iframe 전환 불필요")
+
+        # ✅ 첫 번째 발행 버튼 클릭
+        try:
+            first_publish_button = WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable((By.XPATH, '//button[contains(@class, "publish_btn")]'))
+            )
+        except:
+            first_publish_button = WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable((By.XPATH, '//button[contains(text(), "발행")]'))
+            )
+        print("✅ 첫 번째 발행 버튼 찾음")
+
+        # ✅ JavaScript로 강제 클릭 (첫 번째 버튼)
+        driver.execute_script("arguments[0].click();", first_publish_button)
+        print("✅ 첫 번째 발행 버튼 클릭 완료")
+
+        time.sleep(3)  # UI 업데이트 대기
+
+        # ✅ 두 번째 최종 발행 버튼 클릭 (새로운 네이버 UI에서 추가됨)
+        try:
+            second_publish_button = WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable((By.XPATH, '//button[@data-testid="seOnePublishBtn"]'))
+            )
+            driver.execute_script("arguments[0].click();", second_publish_button)
+            print("✅ 두 번째 최종 발행 버튼 클릭 완료")
+        except:
+            print("⚠ 두 번째 발행 버튼 없음. 바로 게시됨.")
+
+        time.sleep(5)  # 네이버 서버에서 처리 대기
+
+        print("✅ 게시글 발행 완료!")
+
+    except Exception as e:
+        print("⚠ 게시글 발행 중 오류 발생:", e)
 
 ###
 
@@ -148,14 +200,13 @@ write_title(driver, "title")
 write_content(driver, "테스트 본문입니다.")
 
 
-# ✅ 본문 입력 필드 찾기 & 입력
-content_box = driver.find_element(By.CSS_SELECTOR, "div[contenteditable='true']")
-content_box.send_keys(BLOG_CONTENT)
+# # ✅ 본문 입력 필드 찾기 & 입력
+# content_box = driver.find_element(By.CSS_SELECTOR, "div[contenteditable='true']")
+# content_box.send_keys(BLOG_CONTENT)
 
 # ✅ 발행 버튼 클릭
-publish_button = driver.find_element(By.CLASS_NAME, "btn_publish")
-publish_button.click()
+complete_writing(driver)
 
 print("✅ 블로그 자동 업로드 완료!")
 time.sleep(5)
-driver.quit()
+# driver.quit()
